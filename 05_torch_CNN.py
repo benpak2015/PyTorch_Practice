@@ -5,23 +5,21 @@ import torchvision.transforms as transforms
 
 
 # Device configuration
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
-# Hyper-parameters
-input_size = 784
-hidden_size = 500
-n_classes = 10
+# Hyper parameters
 n_epochs = 5
+n_classes = 10
 batch_size = 100
 learning_rate = 0.001
 
 # MNIST dataset
-train_dataset = torchvision.datasets.MNIST(root='data/',
+train_dataset = torchvision.datasets.MNIST(root='../../data/',
                                            train=True,
                                            transform=transforms.ToTensor(),
                                            download=True)
 
-test_dataset = torchvision.datasets.MNIST(root='data/',
+test_dataset = torchvision.datasets.MNIST(root='../../data/',
                                           train=False,
                                           transform=transforms.ToTensor())
 
@@ -34,21 +32,32 @@ test_loader = torch.utils.data.DataLoader(dataset=test_dataset,
                                           batch_size=batch_size,
                                           shuffle=False)
 
-# Fully-connected neural network with one hidden layer
-class NeuralNet(nn.Module):
-    def __init__(self, input_size, hidden_size, n_classes):
-        super(NeuralNet, self).__init__()
-        self.fc1 = nn.Linear(input_size, hidden_size)
-        self.relu = nn.ReLU()
-        self.fc2 = nn.Linear(hidden_size, n_classes)
+# Convolutional neural network (two convolutional layers)
+class ConvNet(nn.Module):
+    def __init__(self, n_classes):
+        super(ConvNet, self).__init__()
+        self.layer1 = nn.Sequential(
+            nn.Conv2d(1, 16, kernel_size=5, stride=1, padding=2),
+            nn.BatchNorm2d(16),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2, stride=2)
+        )
+        self.layer2 = nn.Sequential(
+            nn.Conv2d(16, 32, kernel_size=5, stride=1, padding=2),
+            nn.BatchNorm2d(32),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2, stride=2)
+        )
+        self.fc = nn.Linear(7*7*32, n_classes)
 
     def forward(self, x):
-        out = self.fc1(x)
-        out = self.relu(out)
-        out = self.fc2(out)
+        out = self.layer1(x)
+        out = self.layer2(out)
+        out = out.reshape(out.size(0), -1)
+        out = self.fc(out)
         return out
 
-model = NeuralNet(input_size, hidden_size, n_classes).to(device)
+model = ConvNet(n_classes).to(device)
 
 # Loss and optimizer
 cost = nn.CrossEntropyLoss()
@@ -58,15 +67,14 @@ optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 total_step = len(train_loader)
 for epoch in range(n_epochs):
     for i, (images, labels) in enumerate(train_loader):
-        # Move tensors to the configured device
-        images = images.reshape(-1, 28*28).to(device)
+        images = images.to(device)
         labels = labels.to(device)
 
         # Forward pass
         outputs = model(images)
         loss = cost(outputs, labels)
 
-        # Backward and optimize
+        # Backward pass
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
@@ -76,22 +84,18 @@ for epoch in range(n_epochs):
                   .format(epoch + 1, n_epochs, i + 1, total_step, loss.item()))
 
 # Test the model
-# In test phase, we don't need to compute gradients (for memory efficiency)
 with torch.no_grad():
     correct = 0
     total = 0
+
     for images, labels in test_loader:
-        images = images.reshape(-1, 28 * 28).to(device)
+        images = images.to(device)
         labels = labels.to(device)
         outputs = model(images)
-        _, predicted = torch.max(outputs.data, 1)
+        _ , pred = torch.max(outputs.data, 1)
         total += labels.size(0)
-        correct += (predicted == labels).sum().item()
+        correct += (pred == labels).sum().item()
 
     print("# ====================================== #")
     print('#           Accuracy: {:.2f} %            #'.format(100 * correct / total))
     print("# ====================================== #")
-
-# Save the model checkpoint
-torch.save(model.state_dict(), 'logistic_regression_model.ckpt')
-
