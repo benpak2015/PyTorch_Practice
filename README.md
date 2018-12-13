@@ -1,4 +1,4 @@
-<p align="center"><img width="30%" src="logo/pytorch_logo_2018.svg" /></p>
+<p align="center"><img width="30%" src="https://devblogs.nvidia.com/wp-content/uploads/2017/04/pytorch-logo-dark.png" /></p>
 
 # Pytorch Tutorial
 ## References
